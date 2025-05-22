@@ -18,7 +18,7 @@ defmodule Phreak.Node do
 
   # Handle terminal nodes (plain maps with id, rule_name, actions)
   def left_activate(
-        %{id: id, rule_name: rule_name, actions: actions} = _terminal,
+        %{id: _id, rule_name: rule_name, actions: actions} = _terminal,
         {facts, bindings},
         session
       ) do

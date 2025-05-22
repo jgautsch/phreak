@@ -4,7 +4,7 @@ defmodule Phreak.Compiler do
   Supports compound conditions (AND/OR/NOT) and beta joins for variable matching.
   """
 
-  alias Phreak.{Session, Engine}
+  alias Phreak.Session
   alias Phreak.Nodes.{Alpha, Beta, LogicalGate}
 
   @spec add_rule(Session.t(), map()) :: {:ok, Session.t()} | {:error, term()}
@@ -157,9 +157,9 @@ defmodule Phreak.Compiler do
     {%{gate_node | successors: [connected_child.id]}, next_id, updated_network}
   end
 
-  defp build_network_from_ast({:fact, fact_pattern}, id, _network, _var_analysis) do
+  defp build_network_from_ast({:fact, fact_pattern}, id, network, _var_analysis) do
     alpha_node = build_alpha_from_json(fact_pattern, id)
-    {alpha_node, id + 1}
+    {alpha_node, id + 1, network}
   end
 
   # Build beta network for facts with shared variables
@@ -285,7 +285,9 @@ defmodule Phreak.Compiler do
     # Build child nodes and propagate network updates
     {child_nodes, next_id, network_after_children} =
       Enum.reduce(children, {[], id + 1, network}, fn child_ast, {nodes, cur_id, net_acc} ->
-        {node, next_id_child, new_net} = build_network_from_ast(child_ast, cur_id, net_acc, var_analysis)
+        {node, next_id_child, new_net} =
+          build_network_from_ast(child_ast, cur_id, net_acc, var_analysis)
+
         {nodes ++ [node], next_id_child, new_net}
       end)
 
