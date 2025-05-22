@@ -146,13 +146,15 @@ defmodule Phreak.Compiler do
       successors: []
     }
 
-    # Build child node
-    {child_node, next_id} = build_network_from_ast(child_ast, id + 1, network, var_analysis)
+    # Build child node and carry updated network through
+    {child_node, next_id, updated_network} =
+      build_network_from_ast(child_ast, id + 1, network, var_analysis)
 
-    # Connect child to gate
+    # Connect child to gate and store the updated child in the network
     connected_child = add_successor(child_node, gate_node.id)
+    updated_network = put_node(updated_network, connected_child)
 
-    {%{gate_node | successors: [connected_child.id]}, next_id}
+    {%{gate_node | successors: [connected_child.id]}, next_id, updated_network}
   end
 
   defp build_network_from_ast({:fact, fact_pattern}, id, _network, _var_analysis) do
@@ -280,28 +282,35 @@ defmodule Phreak.Compiler do
       successors: []
     }
 
-    # Build child nodes
-    {child_nodes, next_id} =
-      Enum.reduce(children, {[], id + 1}, fn child_ast, {nodes, id} ->
-        {node, next_id} = build_network_from_ast(child_ast, id, network, var_analysis)
-        {nodes ++ [node], next_id}
+    # Build child nodes and propagate network updates
+    {child_nodes, next_id, network_after_children} =
+      Enum.reduce(children, {[], id + 1, network}, fn child_ast, {nodes, cur_id, net_acc} ->
+        {node, next_id_child, new_net} = build_network_from_ast(child_ast, cur_id, net_acc, var_analysis)
+        {nodes ++ [node], next_id_child, new_net}
       end)
 
-    # Connect children to gate
-    connected_children =
-      Enum.map(child_nodes, fn child ->
-        add_successor(child, gate_node.id)
+    # Connect children to gate and store updated nodes
+    {connected_children, final_network} =
+      Enum.map_reduce(child_nodes, network_after_children, fn child, net ->
+        updated_child = add_successor(child, gate_node.id)
+        {updated_child, put_node(net, updated_child)}
       end)
 
     # Store child IDs in gate
     gate_with_children = %{gate_node | successors: Enum.map(connected_children, & &1.id)}
 
-    {gate_with_children, next_id}
+    {gate_with_children, next_id, final_network}
   end
 
   # Helper functions
   defp add_successor(node, successor_id) do
     %{node | successors: (node.successors || []) ++ [successor_id]}
+  end
+
+  defp put_node(network, node) do
+    Map.update(network, :nodes, %{node.id => node}, fn nodes ->
+      Map.put(nodes, node.id, node)
+    end)
   end
 
   # Helper to store all nodes in the network
